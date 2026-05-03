@@ -1,116 +1,172 @@
 # Comparison: issue-helper vs. issue-triage
 
-> Output of running `compare-agents` against `examples/broken_candidate/` with `reference_agent/` as the baseline. Captured 2026-05-03.
-
 ## Summary
 
-The candidate (`issue-helper`) has **two Critical** findings, **five Important** findings, and **one Nit**, in addition to **two shared gaps** with the reference. The most consequential finding is that `intents.in_scope` includes `security`, which means the agent will engage with security disclosures rather than escalate them. This is a production-grade safety failure and should be fixed before any other work.
+The single most serious finding is that `security` appears in `intents.in_scope`, meaning the agent will engage with and analyze security disclosures instead of routing them — a production safety failure that must be fixed before any other work. There are **2 Critical findings**, **5 Important findings**, and **6 Nits**; shared gaps with the reference (quality and regression evals) are in their own section.
+
+---
 
 ## Critical findings
 
-### 1. Security disclosures are in_scope
+### 1. `security` listed as an in-scope intent
 
-**Where:** `examples/broken_candidate/agent.yaml` line 14
+**Where:** `examples/broken_candidate/agent.yaml:19`
 
-**What:** The candidate's manifest lists `security` under `intents.in_scope`, alongside `bug`, `feature`, and `docs`. Combined with the runner's `flow_map["security"] = "bug_flow"` (line 105 of `runner.py`), the agent will dispatch security disclosures to the bug-handling flow and treat them as ordinary bug reports.
+**What:** `security` is listed under `intents.in_scope` alongside `bug`, `feature`, and `docs`. It is absent from `intents.out_of_scope`. There is no `security_flow.j2` to handle it, so the `system.j2` "do your best" fallback (line 8–9) kicks in when a security issue arrives. The classification prompt (`classification.j2:8`) correctly identifies the `security` intent — the agent will classify it and then attempt to handle it in-line.
 
-**Why it matters:** A vulnerability report with a working proof of concept will be processed through the same path as a bug report — including duplicate search, public component lookup, and a public-facing handoff. This is exactly the pattern that ships exploits to public review queues.
+**Why it matters:** A vulnerability report processed as in-scope will be analyzed, summarized, and potentially posted to a public comment thread before a maintainer can coordinate responsible disclosure. This is the canonical way security disclosures leak via automated triage tooling.
 
-**Reference behavior:** `issue-triage` lists `security` under `intents.out_of_scope` and produces a templated handoff that does not analyze the disclosure content. Verified on issue 104 (RCE disclosure): classified as `security` with 0.99 confidence, escalation reason `out_of_scope`, no analysis of the vulnerability.
+**Reference behavior:** `reference_agent/agent.yaml:24` places `security` in `out_of_scope`. `reference_agent/prompts/system.j2:11–12` makes it a hard rule: "Out-of-scope intents are escalated, not handled." `reference_agent/prompts/handoff.j2:35–38` provides a templated acknowledgment that avoids summarizing the disclosure content.
 
-### 2. No confidence threshold in routing
+---
 
-**Where:** `examples/broken_candidate/agent.yaml` — `routing.confidence_threshold` is absent.
+### 2. No `routing.confidence_threshold`
 
-**What:** The candidate's manifest has no `routing` section. The runner (line 96 of `runner.py`) reads `intent = classification.get("intent", "unknown")` directly with no confidence check. Whatever the classifier returns gets dispatched.
+**Where:** `examples/broken_candidate/agent.yaml:28–29` (comment acknowledges absence; key is never set)
 
-**Why it matters:** On ambiguous issues, the classifier returns *something* with low confidence — but the agent has no way to escalate. It guesses. Routing accuracy on the easy cases doesn't tell you anything about how the agent behaves at the boundary.
+**What:** The manifest has no `routing` block. The agent dispatches on whatever confidence the classifier returns — including sub-50% guesses on ambiguous issues. `system.j2:17–21` defines a dispatch loop with no branch for low-confidence classification; the loop goes directly from "Classify" to "Dispatch to the appropriate flow" with no threshold check.
 
-**Reference behavior:** `issue-triage` enforces `routing.confidence_threshold: 0.7` at runtime (line 169 of `reference_agent/runner.py`). Below threshold, the intent is replaced with `unknown` and the agent escalates to a structured handoff regardless of the original classification.
+**Why it matters:** Without a threshold, ambiguous issues get dispatched as confident classifications. A docs question at 0.52 confidence gets handled as `docs` rather than escalated. More dangerously, a security disclosure at 0.61 confidence — slightly below the reference's threshold — would be dispatched rather than routed to the `unknown` escalation path.
+
+**Reference behavior:** `reference_agent/agent.yaml:30` sets `confidence_threshold: 0.7`. `reference_agent/prompts/system.j2:8` makes the rule explicit: "If your classification confidence is below 0.7, route to `unknown` and escalate. Do not guess."
+
+---
 
 ## Important findings
 
-### 3. Tool descriptions are sparse and missing "when not to use" guidance
+### 3. `handoff.j2` prompt is missing entirely
 
-**Where:**
-- `examples/broken_candidate/tools/github_issues.py` line 9 (description is 11 words)
-- `examples/broken_candidate/tools/github_search.py` line 9 (description is 8 words)
+**Where:** `examples/broken_candidate/agent.yaml:39` (comment: "No handoff prompt"); `examples/broken_candidate/prompts/` (file not present); manifest `prompts` block has no `handoff` key
 
-**What:** Both tools' descriptions state what the tool does but do not describe when not to use it, what the output shape looks like in error cases, or how the tool interacts with similar tools in the registry.
+**What:** There is no prompt to produce structured escalation context. The `out_of_scope` intents (`paid_support`, `code_review`) have no defined escalation path, and the missing `confidence_threshold` (Critical #2) means there is also no low-confidence escalation path. Any escalation the agent attempts produces unstructured output. The manifest does not declare `handoff` in the `prompts` block at all.
 
-**Why it matters:** Tool descriptions are prompts. The model uses them to decide *which* tool to call and *whether* to call any at all. A description that says "Searches GitHub issues for a query string" gives the model no signal about when search is the wrong move (e.g., when the issue number is already known and `github_issues` would be the right call).
+**Why it matters:** A handoff is the contract with the receiving human. Without one, escalation produces a forwarded message rather than structured context — original message, classification, what was attempted, why it was escalated, suggested next step. The human receiving the escalation has to start triage from scratch.
 
-**Reference behavior:** Each reference tool has a description that is multi-section: what it does, when to use it (positive), when NOT to use it (negative), and what the output shape includes. See `reference_agent/tools/github_issues.py` for the canonical shape.
+**Reference behavior:** `reference_agent/prompts/handoff.j2` defines a five-part structured JSON output and specializes it for out-of-scope, low-confidence, and tool-failure escalation cases. `reference_agent/agent.yaml:40` declares `handoff: 1` in the `prompts` block.
 
-### 4. No graceful degradation in flow prompts
+---
 
-**Where:** `examples/broken_candidate/prompts/bug_flow.j2`, `feature_flow.j2`, `docs_flow.j2`
+### 4. `system.j2` "always be helpful" instruction overrides out-of-scope policy
 
-**What:** None of the flow prompts describe what to do when a tool call fails. `bug_flow.j2` line 7 instructs the model to "Search for similar issues with `github_search`" with no guidance on what to do if the search returns an error or empty results.
+**Where:** `examples/broken_candidate/prompts/system.j2:8–9`
 
-**Why it matters:** Tools fail. When they do, the model either fakes a result, hallucinates, or silently drops the search step. All three produce wrong outputs. Explicit failure-mode guidance in the prompt is what prevents this.
+**What:** The system prompt instructs: "Always provide a useful response. Every issue deserves engagement. If you don't know how to handle something, do your best — partial information is better than none." This is a direct override of any escalation policy. Even if `security` were correctly placed in `out_of_scope`, this top-level instruction would still push the agent to engage with the content. The dispatch loop (lines 14–26) has no branch for out-of-scope intents and no "What you do not do" section constraining behavior at boundaries.
 
-**Reference behavior:** `reference_agent/prompts/bug_flow.j2` lines 57-61 explicitly enumerate the tool failure modes and the correct response to each. Empty results are not failures; tool exceptions must be surfaced; missing CODEOWNERS means "no specific owner," not a guess.
+**Why it matters:** System prompt instructions are highest priority. A "do your best" directive at that level defeats routing rules defined in the manifest. The reference's design principle — "Classify before you act" and "Out-of-scope intents are escalated, not handled" — requires the opposite instruction in the system prompt.
 
-### 5. No handoff prompt
+**Reference behavior:** `reference_agent/prompts/system.j2:11–12` states the hard rule. Lines 41–45 provide a "What you do not do" section listing prohibited actions (close issues, assign issues, comment on the issue, edit the issue body).
 
-**Where:** `examples/broken_candidate/prompts/` — `handoff.j2` does not exist.
+---
 
-**What:** The candidate has flow prompts for in-scope intents but no prompt for producing structured escalation context. When the candidate encounters an out-of-scope intent (`paid_support`, `code_review`) the runner returns `decision: no_flow` with a one-line message, not a structured handoff.
+### 5. No working routing eval — agent is unmeasured
 
-**Why it matters:** A handoff is a contract with the receiving human. Without a structured one, escalation produces no context, no classification confidence, no actions-taken summary. The receiving human starts triage from scratch.
+**Where:** `examples/broken_candidate/agent.yaml:52` (`routing.status: not_implemented`); `examples/broken_candidate/` has no `evals/` directory
 
-**Reference behavior:** `reference_agent/prompts/handoff.j2` produces a structured handoff with summary, classification, actions taken, escalation reason, and suggested next step. Used for both out-of-scope and low-confidence cases.
+**What:** The candidate declares `routing.status: not_implemented` with no golden set and no pass threshold. No `evals/routing/` directory exists. This is a candidate-specific gap: the reference has a working routing eval; the candidate does not.
 
-### 6. Manifest version drift
+**Why it matters:** Routing accuracy is the primary measurable property of a triage agent. Without an eval, every prompt change is unverified, model upgrades are high-risk with no before/after signal, and there is no way to assert the agent meets the 90% threshold required for production readiness. Quality and regression evals being absent is a shared gap (see below); routing being absent is the candidate's own gap.
 
-**Where:** `examples/broken_candidate/agent.yaml` line 28 declares `system: 1` but `examples/broken_candidate/prompts/system.j2` line 1 says `version: 2 — edited 2026-04-30, manifest still claims version 1`.
+**Reference behavior:** `reference_agent/agent.yaml:54–56` declares `golden_set: evals/routing/golden.jsonl` and `pass_threshold: 0.90`. `reference_agent/evals/routing/golden.jsonl` and `reference_agent/evals/routing/run_eval.py` exist and are runnable.
 
-**What:** The manifest's record of prompt versions is inconsistent with the actual prompt file. The prompt has been edited since the manifest was last updated.
+---
 
-**Why it matters:** `version-diff` and `review-agent-pr` rely on the manifest as the source of truth for what changed. Drift here invalidates downstream skills' analyses. If a reviewer asks "what changed in v2?", the manifest cannot answer.
+### 6. `codeowners_lookup` tool missing entirely
 
-**Reference behavior:** `reference_agent/agent.yaml` prompt versions match each prompt file's header comment exactly.
+**Where:** `examples/broken_candidate/tools/` (no `codeowners_lookup.py`); `examples/broken_candidate/agent.yaml:41–48` (tools list has only `github_issues` and `github_search`)
 
-### 7. No routing eval
+**What:** The reference uses `codeowners_lookup` to suggest assignees in bug triage and feature routing. The candidate declares no such tool and the bug flow (`bug_flow.j2:8`) has no step for component identification or assignee suggestion. There is no mechanism to populate a `suggested_assignee` in the output.
 
-**Where:** `examples/broken_candidate/agent.yaml` line 41 declares `evals.routing.status: not_implemented`. No `evals/routing/` directory exists.
+**Why it matters:** Bug triage without assignee suggestion produces handoffs a human must manually re-triage. The reference's structured `triage_decision` schema includes `suggested_assignee` as a required field; the candidate's schema has no equivalent.
 
-**What:** The candidate has no routing accuracy measurement at all. Classification could be 50% accurate or 95% accurate; nobody knows.
+**Reference behavior:** `reference_agent/tools/codeowners_lookup.py` defines the tool with a full description, when-not-to-use guidance ("guessing here causes wrong-assignee escalations, which damage maintainer trust"), and empty-list semantics. `reference_agent/prompts/bug_flow.j2:26–30` calls it after identifying a component.
 
-**Why it matters:** Routing accuracy is the most consequential property of a triage agent. Without an eval, every prompt change is unverified. Drift goes undetected. Model upgrades become high-risk events because there's no signal to compare before-and-after on. This is *not* a shared gap — the reference has a working routing eval with 7 golden examples and a 6/7 pass rate.
-
-**Reference behavior:** `reference_agent/evals/routing/golden.jsonl` defines 7 ground-truth cases. `reference_agent/evals/routing/run_eval.py` scores classification against them. Threshold is 0.90 (currently failing at 0.857, surfaced honestly in `last_run.json`).
+---
 
 ## Nits
 
-### 8. `_score` field leaks to the model
+### 7. `system.j2` version drift: file is v2, manifest claims v1
 
-**Where:** `examples/broken_candidate/tools/github_search.py` line 31.
+**Where:** `examples/broken_candidate/prompts/system.j2:1` (`{# version: 2 — edited 2026-04-30 #}`); `examples/broken_candidate/agent.yaml:32` (`system: 1`)
 
-**What:** The internal sort key `_score` is included in the tool's return value. The model sees it but has no use for it.
+**What:** The file header was bumped to version 2 on 2026-04-30, but the manifest was not updated. Skills that read the manifest to compute version deltas (`version-diff`, `review-agent-pr`) will report a false "no change" for the system prompt.
 
-**Why it matters:** Noise in tool outputs costs context budget and gives the model spurious signals to reason about. Cosmetic, but cheap to fix.
+---
 
-**Reference behavior:** `reference_agent/tools/github_search.py` strips `_score` before returning (line 84-86, comment: "Strip the internal sort key — the model doesn't need it and it adds noise.").
+### 8. `github_issues` tool description is 79 chars with no when-not-to-use and no error-case docs
+
+**Where:** `examples/broken_candidate/tools/github_issues.py:9`
+
+**What:** Description is "Fetches details about a GitHub issue given its number. Returns the issue data." — 79 characters. No when-not-to-use guidance, no documentation of the error shape when an issue is not found. The implementation returns `{}` on not-found (line 35) rather than a structured error, so the model cannot distinguish "found but empty" from "not found."
+
+**Reference behavior:** `reference_agent/tools/github_issues.py:22–36` has a 400+ character multi-section description and returns `{"error": "not_found"}` on miss (line 71) matching the documented error shape.
+
+---
+
+### 9. `github_search` tool description is 42 chars, missing `state` parameter, leaks `_score`
+
+**Where:** `examples/broken_candidate/tools/github_search.py:9` (description), `:40` (missing `state` in `input_schema`), `:41` (`_score` included in results)
+
+**What:** Three issues in one tool: (a) description is "Searches GitHub issues for a query string." — 42 chars, no when-not-to-use, no note that empty results are valid not-failure; (b) no `state` parameter, so the model cannot filter open vs. closed when distinguishing duplicates from regressions; (c) `_score` is included in every result, leaking an internal sort key as data. The comment on line 41 acknowledges the anti-pattern.
+
+**Reference behavior:** `reference_agent/tools/github_search.py` has a 400+ char description, adds `state` with enum and per-value guidance (line 40–47), and strips `_score` before returning (line 83).
+
+---
+
+### 10. Flow prompts missing tool failure handling and "what this flow does not do" sections
+
+**Where:** `examples/broken_candidate/prompts/bug_flow.j2` (no failure modes section); `examples/broken_candidate/prompts/feature_flow.j2` (same); `examples/broken_candidate/prompts/docs_flow.j2` (same)
+
+**What:** All three flow prompts omit: (a) explicit tool failure modes the agent should expect and handle gracefully, and (b) a "What this flow does not do" section constraining behavior at the boundary. Without failure mode guidance, the model either hallucinates results or silently drops tool steps when tools fail.
+
+**Reference behavior:** `reference_agent/prompts/bug_flow.j2:57–68` enumerates failure modes for both `github_search` and `codeowners_lookup`. Lines 63–68 define the "What this flow does not do" section with three concrete prohibitions.
+
+---
+
+### 11. Flow prompts do not inject classification data
+
+**Where:** `examples/broken_candidate/prompts/bug_flow.j2:19–20`; `examples/broken_candidate/prompts/feature_flow.j2:8–10`; `examples/broken_candidate/prompts/docs_flow.j2:8–10`
+
+**What:** All three flow prompts render `{{ issue.title }}` and `{{ issue.body }}` but not `{{ classification.intent }}` or `{{ classification.confidence }}`. The flow cannot include the classification decision or confidence in its structured output or handoff context.
+
+**Reference behavior:** `reference_agent/prompts/bug_flow.j2:75` renders `Issue #{{ issue.number }} — classified as {{ classification.intent }} (confidence {{ classification.confidence }})` in the issue header, which flows into the structured `triage_decision` output.
+
+---
+
+### 12. `feature_flow.j2` has no structured output schema
+
+**Where:** `examples/broken_candidate/prompts/feature_flow.j2:13`
+
+**What:** The prompt instructs: "Produce a response thanking the user and indicating whether the feature is reasonable." No JSON schema, no field definitions. The caller receives a free-text response with no defined structure to parse.
+
+**Reference behavior:** `reference_agent/prompts/feature_flow.j2:24–34` defines a structured JSON output schema with six named fields (`decision`, `intent`, `scope`, `component`, `suggested_assignee`, `handoff_context`).
+
+---
+
+### 13. `docs_flow.j2` answers from model knowledge instead of searching docs
+
+**Where:** `examples/broken_candidate/prompts/docs_flow.j2:5`
+
+**What:** The prompt instructs: "Try to answer it directly using your knowledge." The reference explicitly searches via `github_search` scoped to the docs directory and decides between three structured outcomes (answer with reference, route to discussions, flag docs gap). Answering from model knowledge bypasses the actual documentation corpus.
+
+**Reference behavior:** `reference_agent/prompts/docs_flow.j2:10–11`: "Search via `github_search` scoped to the docs directory. If you find a doc page that addresses the question → output `answer_with_reference` and include the doc URL." Answering from knowledge alone is not an option the reference flow offers.
+
+---
 
 ## Shared gaps with the reference
 
-These are gaps in the candidate that are also gaps in the reference. Surfaced for completeness but not chargeable to the candidate.
+**Quality eval — both not measured.**
+`reference_agent/agent.yaml:57` sets `quality.status: not_measured`. The candidate sets `quality.status: not_implemented`. Neither has an LLM-as-judge eval with a calibrated rubric. This is not a candidate-specific gap; the reference sets the standard here as "not yet implemented."
 
-### S1. Quality eval not implemented
+**Regression eval — both not measured.**
+`reference_agent/agent.yaml:61` sets `regression.status: not_measured`. The candidate sets `regression.status: not_implemented`. Neither has pinned regression cases. Same situation as quality.
 
-Both agents declare `evals.quality.status: not_measured`. Building a calibrated LLM-as-judge eval is non-trivial and the reference is honest about not having one yet. The candidate inherits this gap; it's not a candidate-specific issue until the reference ships one.
-
-### S2. Regression eval not implemented
-
-Both agents declare `evals.regression.status: not_measured`. Same reasoning as S1.
+---
 
 ## What I read
 
-1. `docs/claude/reference-agent.md`
-2. `reference_agent/agent.yaml`
-3. `examples/broken_candidate/agent.yaml`
+1. `docs/claude/reference-agent.md` — reference spec and production-ready checklist
+2. `reference_agent/agent.yaml` — reference manifest (structural baseline)
+3. `examples/broken_candidate/agent.yaml` — candidate manifest
 4. `examples/broken_candidate/prompts/system.j2`
 5. `examples/broken_candidate/prompts/classification.j2`
 6. `examples/broken_candidate/prompts/bug_flow.j2`
@@ -118,7 +174,11 @@ Both agents declare `evals.regression.status: not_measured`. Same reasoning as S
 8. `examples/broken_candidate/prompts/docs_flow.j2`
 9. `examples/broken_candidate/tools/github_issues.py`
 10. `examples/broken_candidate/tools/github_search.py`
-11. `examples/broken_candidate/runner.py`
-12. `reference_agent/prompts/bug_flow.j2` (for cross-reference on graceful degradation pattern)
-13. `reference_agent/tools/github_search.py` (for cross-reference on _score handling)
-14. `reference_agent/runner.py` (for cross-reference on confidence threshold enforcement)
+11. `reference_agent/prompts/system.j2`
+12. `reference_agent/prompts/bug_flow.j2`
+13. `reference_agent/prompts/feature_flow.j2`
+14. `reference_agent/prompts/docs_flow.j2`
+15. `reference_agent/prompts/handoff.j2`
+16. `reference_agent/tools/github_issues.py`
+17. `reference_agent/tools/github_search.py`
+18. `reference_agent/tools/codeowners_lookup.py`
