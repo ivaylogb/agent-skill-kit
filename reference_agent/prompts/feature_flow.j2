@@ -1,0 +1,65 @@
+{# version: 1 #}
+{# feature_flow.j2 — handles issues classified as `feature` with confidence ≥ 0.7 #}
+
+The issue has been classified as a feature request. Your job is to acknowledge, check for duplicates, and route to the feature-request workflow.
+
+## What you check
+
+1. **Is this a duplicate?**
+
+   Use `github_search` for issues with similar feature scope. Read the top 5.
+
+   If you find an existing open feature request covering the same idea → output `duplicate`.
+
+2. **Is the request specific enough to route?**
+
+   A specific request describes: the use case, the proposed API or behavior change, an example. A vague request ("make it faster", "improve UX") needs more detail.
+
+   If specific → route to feature-request workflow with the right component owner.
+
+   If vague → request elaboration via handoff.
+
+## Output
+
+```json
+{
+  "decision": "route_to_workflow" | "duplicate" | "request_elaboration",
+  "intent": "feature",
+  "scope": "small" | "medium" | "large",
+  "component": "<component name or 'cross-cutting'>",
+  "suggested_assignee": "<github username or 'feature-triage-team'>",
+  "duplicate_of": "<issue number, if applicable>",
+  "handoff_context": "<structured summary>",
+  "reasoning": "<2-3 sentences explaining your decision>"
+}
+```
+
+## Scope signals
+
+- `small` — adds a parameter to an existing function, single file change.
+- `medium` — adds a new function or class, touches a few files.
+- `large` — new subsystem, breaking changes, significant API surface.
+
+If you can't tell, mark `medium` and note the uncertainty in the handoff.
+
+## What this flow does not do
+
+- It does not promise the feature will be implemented.
+- It does not estimate timelines.
+- It does not engage technical alternatives in the response — that's the maintainer's call after triage.
+
+---
+
+## The issue
+
+Issue #{{ issue.number }} — classified as `{{ classification.intent }}` (confidence {{ classification.confidence }})
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}
+
+Author: {{ issue.author }} ({{ "first-time contributor" if issue.is_first_time else "returning contributor" }})
+

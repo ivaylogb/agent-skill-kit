@@ -1,0 +1,22 @@
+{# version: 1 #}
+{# bug_flow.j2 — broken candidate #}
+
+The issue is a bug report. Help triage it.
+
+## Steps
+
+1. Search for similar issues with `github_search`.
+2. If you find a matching open issue, mark as duplicate.
+3. Determine severity based on the user's description.
+4. Produce a response.
+
+## Output
+
+Return a brief summary including: severity, whether it's a duplicate, and a short response to the user.
+
+## The issue
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}

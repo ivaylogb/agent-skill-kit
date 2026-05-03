@@ -1,0 +1,82 @@
+[
+  {
+    "number": 101,
+    "title": "TypeError when parsing empty config file",
+    "body": "I get `TypeError: 'NoneType' object is not iterable` when I run `mylib parse config.yaml` and the file is empty. Expected: an empty config or a clear error. Actual: stack trace.\n\nReproduction:\n```bash\ntouch config.yaml\nmylib parse config.yaml\n```\n\nVersion: 2.3.1, Python 3.11.",
+    "labels": ["bug"],
+    "author": "alice",
+    "is_first_time": false,
+    "state": "open",
+    "created_at": "2026-04-15T10:00:00Z"
+  },
+  {
+    "number": 102,
+    "title": "Add support for streaming output to the CLI",
+    "body": "It would be great if `mylib run` could stream output as it's produced rather than buffering everything until completion. My use case: long-running pipelines where I want progress visibility.\n\nProposed: a `--stream` flag that prints results incrementally.",
+    "labels": ["feature"],
+    "author": "bob",
+    "is_first_time": false,
+    "state": "open",
+    "created_at": "2026-04-12T14:30:00Z"
+  },
+  {
+    "number": 103,
+    "title": "Where is the migration guide from v1 to v2?",
+    "body": "I'm upgrading from 1.x to 2.x and the docs reference a migration guide at `/docs/migration` but the link is dead. Can someone point me to the right place?",
+    "labels": ["docs"],
+    "author": "carol",
+    "is_first_time": true,
+    "state": "open",
+    "created_at": "2026-04-20T09:15:00Z"
+  },
+  {
+    "number": 104,
+    "title": "Possible RCE in deserialize function",
+    "body": "I believe I've found a remote code execution vulnerability in the `deserialize()` function when handling untrusted input. I'd like to discuss this privately first — please get in touch via security@example.org. I have a working proof of concept.",
+    "labels": [],
+    "author": "dan",
+    "is_first_time": true,
+    "state": "open",
+    "created_at": "2026-04-22T16:00:00Z"
+  },
+  {
+    "number": 105,
+    "title": "Need urgent help — paying customer",
+    "body": "Our team has an enterprise license and we're hitting a critical issue blocking our release. Per our SLA we need a response within 4 hours. Contact: support-tier@bigco.example.\n\nIssue: connection pool exhaustion under load. Happy to share traces privately.",
+    "labels": [],
+    "author": "eve",
+    "is_first_time": true,
+    "state": "open",
+    "created_at": "2026-04-23T11:30:00Z"
+  },
+  {
+    "number": 106,
+    "title": "Is this the right way to use the API?",
+    "body": "Hey folks, I wrote this wrapper around the library — does this look right? Any feedback welcome:\n\n```python\nclass MyWrapper:\n    def __init__(self, config):\n        self.client = Library(config)\n    def run(self, x):\n        return self.client.execute(x).result\n```\n\nIs there a more idiomatic way to do this?",
+    "labels": [],
+    "author": "frank",
+    "is_first_time": false,
+    "state": "open",
+    "created_at": "2026-04-21T08:45:00Z"
+  },
+  {
+    "number": 107,
+    "title": "Documentation says X but code does Y",
+    "body": "The docs at /reference/parser say that `parse()` returns `None` on invalid input, but in 2.3.1 it raises `ParseError`. Either the docs are wrong or this is a regression. I tried both and the code raises.\n\n```python\n>>> from mylib import parse\n>>> parse(\"invalid{}{}\")\nTraceback...ParseError: ...\n```",
+    "labels": [],
+    "author": "grace",
+    "is_first_time": false,
+    "state": "open",
+    "created_at": "2026-04-19T13:20:00Z"
+  },
+  {
+    "number": 50,
+    "title": "TypeError when parsing empty config",
+    "body": "Reporting an issue: empty config files cause a TypeError. Was working in 2.2 — looks like a regression in 2.3.",
+    "labels": ["bug", "regression"],
+    "author": "earlier_user",
+    "is_first_time": false,
+    "state": "closed",
+    "created_at": "2026-02-10T10:00:00Z"
+  }
+]

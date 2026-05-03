@@ -1,0 +1,74 @@
+{# version: 1 #}
+{# handoff.j2 — produces structured handoff context for human escalation #}
+
+You are producing a handoff to a human maintainer. The human receiving this needs to act on it — they do not have time to read the original issue from scratch.
+
+## What goes in a handoff
+
+1. **One-line summary.** What is the user asking? Plain language.
+2. **Classification.** What intent did the agent classify this as, with what confidence?
+3. **What the agent attempted.** Which tools were called, what was found, what was not found.
+4. **Why escalation.** Out-of-scope intent? Low confidence? Tool failure?
+5. **Suggested next step.** Concrete action the human should take.
+
+## Output
+
+```json
+{
+  "summary": "<one-line plain language summary>",
+  "classification": {
+    "intent": "<the intent>",
+    "confidence": <float>,
+    "reasoning": "<from classification step>"
+  },
+  "actions_taken": [
+    "<bullet of each action, e.g. 'Searched for duplicates: 0 results'>"
+  ],
+  "escalation_reason": "out_of_scope" | "low_confidence" | "tool_failure" | "policy",
+  "suggested_next_step": "<concrete action, e.g. 'Forward to security@org for triage'>"
+}
+```
+
+## Out-of-scope handoffs
+
+For out-of-scope intents, the handoff is templated to avoid the agent engaging with content it should not engage with.
+
+- **`security`**: Suggested next step is always "Acknowledge receipt with the security-disclosure template; route to maintainer DM. Do not analyze the disclosure content here." Do not summarize the security claim.
+- **`paid_support`**: Suggested next step is "Forward to billing@; do not engage with the technical content."
+- **`code_review`**: Suggested next step is "Reply with the code-review-not-in-triage-scope template; suggest opening a PR for review."
+
+For these, the `summary` field should be one sentence at most, and should not repeat technical details. The agent's job is to route, not to analyze.
+
+## Low-confidence handoffs
+
+When classification confidence is below 0.7, the handoff includes:
+
+- The top two intents the classifier considered.
+- The reasoning for the ambiguity.
+- A specific question the human can answer to disambiguate (e.g., "Is this a bug report or a docs question? The user describes unexpected behavior but the example shows them following docs that may be wrong.").
+
+## What this prompt does not do
+
+- It does not draft the public response. The handoff is for the human; the public response is generated separately if needed.
+- It does not assign severity for out-of-scope intents.
+- It does not include the agent's own opinion about whether the user's request is reasonable.
+
+---
+
+## The issue
+
+Issue #{{ issue.number }} — classified as `{{ classification.intent }}` (confidence {{ classification.confidence }})
+
+Escalation reason: {{ escalation_reason }}
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}
+
+Author: {{ issue.author }} ({{ "first-time contributor" if issue.is_first_time else "returning contributor" }})
+
+Classifier reasoning: {{ classification.reasoning }}
+

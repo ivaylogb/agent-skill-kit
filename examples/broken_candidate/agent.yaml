@@ -1,0 +1,60 @@
+# issue-helper agent manifest
+#
+# This is a candidate agent built by a partner dev who's read the reference
+# agent doc but skipped some of the production patterns. compare-agents will
+# diff this against the reference and surface the gaps.
+
+agent: issue-helper
+version: 1
+description: >
+  Helps with incoming issues. Triages and provides initial response.
+
+model: claude-sonnet-4-5
+
+intents:
+  in_scope:
+    - bug
+    - feature
+    - docs
+    - security      # FLAW 1: security is in_scope. Should be out_of_scope.
+                    # An agent that engages with security disclosures will
+                    # leak details to public review queues.
+  out_of_scope:
+    - paid_support
+    - code_review
+  fallback: unknown
+
+# FLAW 2: no routing.confidence_threshold. The agent dispatches on whatever
+# the classifier returns, with no escalation path for low confidence.
+# Result: agent guesses on ambiguous issues instead of escalating.
+
+prompts:
+  system: 1         # FLAW 6: claims version 1, but system.j2 has been edited
+                    # since (see header comment in system.j2). Manifest is
+                    # out of sync with code.
+  classification: 1
+  bug_flow: 1
+  feature_flow: 1
+  docs_flow: 1
+  # No handoff prompt — flaw exposed by compare-agents.
+
+tools:
+  - name: github_issues
+    version: 1
+    purpose: Fetch issue details
+  - name: github_search
+    version: 1
+    purpose: Search issues
+
+# FLAW 5: no eval coverage at all. No routing eval, no quality eval, no
+# regression cases. Agent is unmeasured.
+evals:
+  routing:
+    status: not_implemented
+  quality:
+    status: not_implemented
+  regression:
+    status: not_implemented
+
+production_correlation:
+  status: not_measured

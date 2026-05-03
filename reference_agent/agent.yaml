@@ -1,0 +1,70 @@
+# Manifest for the issue-triage agent.
+#
+# The skills in this repo read this file to compute version deltas, check
+# convention compliance, and identify what to compare against. Keep it
+# accurate — if it drifts from the actual code, the skills will produce
+# wrong audits.
+
+agent: issue-triage
+version: 1
+description: >
+  Open-source library maintainer assistant. Triages new GitHub issues into
+  bug / feature / docs / out-of-scope categories, gathers context, and either
+  resolves directly (when in-scope and confident) or routes with structured
+  handoff to a human.
+
+model: claude-sonnet-4-5
+
+intents:
+  in_scope:
+    - bug          # Bug reports
+    - feature      # Feature requests
+    - docs         # Documentation questions
+  out_of_scope:
+    - security     # Security disclosures — do not analyze, route to maintainer
+    - paid_support # Paid-support requests — route to billing
+    - code_review  # Code review requests — out of triage scope
+  fallback: unknown
+
+routing:
+  confidence_threshold: 0.7
+  # Below this, classification returns "unknown" and the agent escalates
+  # rather than guessing. This is the single most important calibration knob.
+
+prompts:
+  system: 1
+  classification: 1
+  bug_flow: 1
+  feature_flow: 1
+  docs_flow: 1
+  handoff: 1
+
+tools:
+  - name: github_issues
+    version: 1
+    purpose: Fetch issue details and existing comments
+  - name: github_search
+    version: 1
+    purpose: Search for duplicate or related issues
+  - name: codeowners_lookup
+    version: 1
+    purpose: Identify suggested assignees for a given file or component
+
+evals:
+  routing:
+    golden_set: evals/routing/golden.jsonl
+    pass_threshold: 0.90
+  quality:
+    status: not_measured
+    # When implemented: pass_threshold should be set after measuring judge
+    # calibration against human raters (target Kappa >= 0.7).
+  regression:
+    status: not_measured
+    # When implemented: pinned cases for previously-shipped bugs. Never delete
+    # entries; only add. cases: evals/regression/cases.jsonl
+
+production_correlation:
+  status: not_measured
+  # When implemented: weekly Pearson correlation between offline judge scores
+  # and online quality signals (user reactions, escalation rates). Below 0.75
+  # the offline evals stop predicting production quality and need recalibration.

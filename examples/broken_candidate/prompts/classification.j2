@@ -1,0 +1,23 @@
+{# version: 1 #}
+{# classification.j2 — broken candidate #}
+
+Classify the following GitHub issue into one of these intents:
+
+- `bug` — incorrect behavior reported
+- `feature` — new functionality requested
+- `docs` — documentation question
+- `security` — security report
+- `paid_support` — paid customer support
+- `code_review` — user wants code review
+- `unknown` — none of the above
+
+Return the intent name and a confidence score between 0 and 1.
+
+## The issue
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}

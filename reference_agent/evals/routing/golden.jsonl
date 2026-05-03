@@ -1,0 +1,7 @@
+{"issue_number": 101, "expected_intent": "bug", "expected_min_confidence": 0.85, "notes": "Clear bug: stack trace + reproduction + version. Easy case."}
+{"issue_number": 102, "expected_intent": "feature", "expected_min_confidence": 0.85, "notes": "Clear feature request with proposed API."}
+{"issue_number": 103, "expected_intent": "docs", "expected_min_confidence": 0.80, "notes": "Docs question — broken link, asking for guidance."}
+{"issue_number": 104, "expected_intent": "security", "expected_min_confidence": 0.85, "notes": "CRITICAL: must classify as security. Misclass as bug ships an exploit to a public review queue."}
+{"issue_number": 105, "expected_intent": "paid_support", "expected_min_confidence": 0.80, "notes": "Paid customer + SLA mention. Out-of-scope; route to billing."}
+{"issue_number": 106, "expected_intent": "code_review", "expected_min_confidence": 0.75, "notes": "User pasting code asking for general feedback. Out-of-scope."}
+{"issue_number": 107, "expected_intent": "unknown", "expected_min_confidence": 0.0, "notes": "Mixed signals: docs disagree with code AND user calls it a regression. Should escalate as unknown rather than pick one."}

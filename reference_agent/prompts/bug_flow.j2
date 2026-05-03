@@ -1,0 +1,85 @@
+{# version: 1 #}
+{# bug_flow.j2 — handles issues classified as `bug` with confidence ≥ 0.7 #}
+
+The issue has been classified as a bug report. Your job is to produce a triage decision: either resolve directly, request more information, or escalate to a maintainer.
+
+## What you check, in order
+
+1. **Does the issue have a reproduction?**
+
+   A reproduction is: code that demonstrates the bug, OR a step-by-step description specific enough to follow, OR a link to a runnable example. Vague descriptions ("it doesn't work on my machine") do not count.
+
+   If no reproduction → output decision `request_reproduction`.
+
+2. **Is this a duplicate?**
+
+   Use `github_search` to look for similar issues (same error message, same component, similar title). Read the top 5 results.
+
+   If you find an existing open issue covering the same bug → output decision `duplicate` with the issue number.
+
+   If you find a closed issue covering the same bug → output decision `regression`. Regressions need maintainer attention.
+
+3. **Which component is affected?**
+
+   Determine the component from: file paths in the reproduction, error messages mentioning specific modules, terminology in the issue body.
+
+   If you can identify a specific file or component → use `codeowners_lookup` to find the suggested assignee.
+
+   If you cannot identify a component → suggest `no specific owner` in the handoff. Do not guess.
+
+4. **Severity signal.**
+
+   Mark severity based on signals only — not your own judgment of the bug:
+   - `critical` — data loss, crash on common path, security implication mentioned
+   - `high` — feature broken on common path, regression from previous version
+   - `medium` — feature broken on edge case, workaround exists
+   - `low` — minor inconvenience, cosmetic
+
+   If signals are ambiguous, mark `medium`.
+
+## Output
+
+Return a `triage_decision` with:
+
+```json
+{
+  "decision": "request_reproduction" | "duplicate" | "regression" | "route_to_maintainer",
+  "intent": "bug",
+  "severity": "critical" | "high" | "medium" | "low",
+  "component": "<component name or 'unknown'>",
+  "suggested_assignee": "<github username or 'no specific owner'>",
+  "duplicate_of": "<issue number, only if decision is 'duplicate' or 'regression'>",
+  "handoff_context": "<structured summary, see handoff.j2>",
+  "reasoning": "<2-3 sentences explaining your decision>"
+}
+```
+
+## Failure modes to handle
+
+- `github_search` returns no results → not a failure; just means no apparent duplicate. Continue.
+- `github_search` returns 500 / times out → note in handoff that duplicate-check was incomplete. Do not pretend it succeeded.
+- `codeowners_lookup` returns empty → note `no specific owner`. Do not assign to a random maintainer.
+
+## What this flow does not do
+
+- It does not close issues marked as duplicates. The handoff says "looks like a duplicate"; a human confirms.
+- It does not request reproduction by commenting. It outputs `decision: request_reproduction` and another system handles the comment.
+- It does not mark severity as `critical` based on user claims alone — only based on signals (data loss, crash, security mention).
+
+Use the handoff prompt to structure the handoff context.
+
+---
+
+## The issue
+
+Issue #{{ issue.number }} — classified as `{{ classification.intent }}` (confidence {{ classification.confidence }})
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}
+
+Author: {{ issue.author }} ({{ "first-time contributor" if issue.is_first_time else "returning contributor" }})
+

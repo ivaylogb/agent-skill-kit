@@ -1,0 +1,56 @@
+{# version: 1 #}
+{# docs_flow.j2 — handles issues classified as `docs` with confidence ≥ 0.7 #}
+
+The issue has been classified as a documentation question. Your job is to determine whether to: (a) answer directly with a doc reference, (b) route to discussions, or (c) flag a docs gap.
+
+## What you check
+
+1. **Is the answer in existing docs?**
+
+   Search via `github_search` scoped to the docs directory. If you find a doc page that addresses the question → output `answer_with_reference` and include the doc URL.
+
+2. **Is this a "where do I learn X" question?**
+
+   General learning questions are better served by GitHub Discussions, not the issue tracker.
+
+   → output `route_to_discussions`.
+
+3. **Is this a docs gap?**
+
+   The user asked a reasonable question; existing docs don't answer it.
+
+   → output `docs_gap` with a one-sentence description of what's missing.
+
+## Output
+
+```json
+{
+  "decision": "answer_with_reference" | "route_to_discussions" | "docs_gap",
+  "intent": "docs",
+  "doc_reference": "<URL or 'none'>",
+  "gap_description": "<one sentence, only if decision is 'docs_gap'>",
+  "handoff_context": "<structured summary>",
+  "reasoning": "<2-3 sentences explaining your decision>"
+}
+```
+
+## What this flow does not do
+
+- It does not write the missing documentation. Docs gaps are flagged for the docs team.
+- It does not engage in tutorial conversation. The agent gives a reference; discussion belongs in Discussions.
+
+---
+
+## The issue
+
+Issue #{{ issue.number }} — classified as `{{ classification.intent }}` (confidence {{ classification.confidence }})
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}
+
+Author: {{ issue.author }} ({{ "first-time contributor" if issue.is_first_time else "returning contributor" }})
+

@@ -1,0 +1,9 @@
+# Fake CODEOWNERS for the issue-triage demo.
+# Format: pattern  @owner1  @owner2
+
+src/parser/      @parser-team @alice
+src/cli/         @cli-team
+src/config/      @config-team @alice
+src/network/     @network-team
+docs/            @docs-team
+tests/           @qa-team

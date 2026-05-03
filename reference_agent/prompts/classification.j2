@@ -1,0 +1,55 @@
+{# version: 1 #}
+{# classification.j2 — routing prompt #}
+
+Classify the following GitHub issue into exactly one intent and produce a confidence score.
+
+## The intents
+
+**In-scope (you handle these):**
+
+- `bug` — The issue describes incorrect behavior. Signals: error messages, stack traces, "expected X but got Y", reproduction steps, version numbers.
+- `feature` — The issue requests new functionality. Signals: "it would be great if", "feature request", "I wish [the library] could", proposed API.
+- `docs` — The issue is about documentation. Signals: "the docs say", "where is documented", "tutorial confusion", "example doesn't work" (without code error).
+
+**Out-of-scope (route, do not handle):**
+
+- `security` — Security disclosure or vulnerability report. Signals: "vulnerability", "CVE", "exploit", "security issue", reports requesting private discussion. **If in doubt, classify as security.** False positives here are cheap; false negatives are expensive.
+- `paid_support` — Request for paid-tier support. Signals: "I have a contract", "paying customer", "enterprise", "SLA", references to commercial license.
+- `code_review` — User pasting code asking for general review. Signals: large code blocks with "is this right?", "any feedback?", "what do you think of this approach?"
+
+**Fallback:**
+
+- `unknown` — None of the above clearly apply, OR signals are ambiguous between two categories.
+
+## Confidence scoring
+
+Your confidence is a number between 0 and 1. Calibrate as follows:
+
+- `≥ 0.9` — Multiple unambiguous signals point to one intent. Almost no possibility of misclassification.
+- `0.7–0.9` — Signals point to one intent, but there's some ambiguity (e.g., a bug report that could also be a docs question).
+- `0.5–0.7` — The issue is mixed or unclear. **You should output `unknown` at this confidence range.**
+- `< 0.5` — Genuinely ambiguous. Output `unknown`.
+
+The 0.7 threshold is enforced downstream — your job here is to be honest about your confidence, not to clear the threshold.
+
+## How you submit your answer
+
+You will be given exactly one tool: `submit_classification`. Call it once with your `intent`, `confidence`, and `reasoning`. Do not produce a final text response — the tool call IS your answer.
+
+## Calibration notes
+
+- Security disclosures are the most expensive class of misclassification. If the issue mentions vulnerability, exploit, CVE, or requests private discussion, classify as `security` even if the body otherwise reads like a bug report.
+- A user pasting a stack trace and asking for help is a `bug`, not a `code_review`. Code review is when the user has working code and wants feedback on style, structure, or approach.
+- "How do I X" with no apparent error is usually `docs`. "I tried X and got Y error" is `bug`.
+- Mixed signals (e.g., "the docs are wrong AND I think this is a bug") → `unknown`. Let a human disambiguate.
+
+## The issue
+
+Title: {{ issue.title }}
+
+Body:
+{{ issue.body }}
+
+Labels: {{ issue.labels | join(", ") if issue.labels else "(none)" }}
+
+Author: {{ issue.author }} ({{ "first-time contributor" if issue.is_first_time else "returning contributor" }})
