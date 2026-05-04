@@ -2,6 +2,18 @@
 
 Claude Code skills for shipping production-grade agents. A reference agent, a set of audit skills, and the conventions that hold them together.
 
+## Where this fits
+
+Part of [agent-engineering](https://github.com/ivaylogb/agent-engineering) — a four-layer system for production-grade LLM agents.
+
+This kit is **Layer 4: Development workflows**. It answers: how do we make agent-building repeatable across people and time?
+
+The other three layers:
+
+- [agent-eval-loop](https://github.com/ivaylogb/agent-eval-loop) — evaluation. How do we know the agent got better?
+- [agent-tool-kit](https://github.com/ivaylogb/agent-tool-kit) — tool contracts. How do we make agent actions reliable?
+- [agent-context-kit](https://github.com/ivaylogb/agent-context-kit) — context runtime. How do we keep the model focused?
+
 ## What's here
 
 | | |
