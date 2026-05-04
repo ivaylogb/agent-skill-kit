@@ -117,15 +117,6 @@ Pattern for adopting in your own repo:
 
 See [`EXTENDING.md`](EXTENDING.md) for adding a new agent to this kit.
 
-## Related
-
-Part of a set:
-
-- [`agent-tool-kit`](https://github.com/ivaylogb/agent-tool-kit) — tool design patterns
-- [`agent-context-kit`](https://github.com/ivaylogb/agent-context-kit) — context engineering and sub-agent isolation
-- [`agent-eval-loop`](https://github.com/ivaylogb/agent-eval-loop) — simulate → evaluate → improve
-- `agent-skill-kit` (this repo) — the methodology and audit skills
-
 ## License
 
 MIT.
