@@ -1,0 +1,105 @@
+{
+  "name": "lead_triage",
+  "description": "Triages incoming sales leads and routes them by qualification stage.",
+  "domain": "B2B sales operations",
+  "audience": "Sales development reps and revenue operations",
+  "confidence_threshold": 0.7,
+  "intents": [
+    {
+      "name": "qualified",
+      "description": "Lead has clear budget, authority, need, and timeline signals.",
+      "in_scope": true,
+      "signals": ["enterprise", "budget approved", "evaluating vendors", "decision maker"]
+    },
+    {
+      "name": "nurture",
+      "description": "Interested but not ready to buy.",
+      "in_scope": true,
+      "signals": ["exploring", "researching", "next quarter", "curious about"]
+    },
+    {
+      "name": "unqualified",
+      "description": "Lead does not meet basic qualification criteria.",
+      "in_scope": true,
+      "signals": ["student", "personal use", "just curious", "hobby"]
+    },
+    {
+      "name": "spam",
+      "description": "Outreach that should not be processed at all (out-of-scope).",
+      "in_scope": false,
+      "signals": ["promotional", "unsolicited proposal", "crypto opportunity", "partnership offer"]
+    }
+  ],
+  "tools": [
+    {
+      "name": "lead_lookup",
+      "purpose": "Fetch existing CRM records matching a lead email or company.",
+      "when_to_use": [
+        "You have an email or company name and want to check for existing records",
+        "Determining whether a lead is a duplicate of an existing account"
+      ],
+      "when_not_to_use": [
+        "You only have a partial name; this tool requires email or domain",
+        "You need real-time enrichment data — use enrich_company instead"
+      ],
+      "inputs": [
+        {"name": "email_or_company", "type": "string", "description": "Email address or company domain."}
+      ],
+      "output_shape": "dict with crm_record (or null) and any related contacts list."
+    },
+    {
+      "name": "enrich_company",
+      "purpose": "Get firmographic data (size, industry, funding) for a company domain.",
+      "when_to_use": ["Determining lead qualification when CRM has no record"],
+      "when_not_to_use": ["You already have CRM data — that is more authoritative"],
+      "inputs": [
+        {"name": "domain", "type": "string", "description": "Company domain like example.com."}
+      ],
+      "output_shape": "dict with size, industry, funding_stage, headquarters; null fields if not found."
+    }
+  ],
+  "flows": [
+    {
+      "intent": "qualified",
+      "steps": [
+        "Look up CRM record via lead_lookup",
+        "If no CRM record, enrich via enrich_company",
+        "Score qualification and produce structured output"
+      ],
+      "output_fields": [
+        {"name": "qualification_score", "description": "0-100 score based on BANT signals"},
+        {"name": "next_step", "description": "recommended action: AE assignment, demo schedule, etc."},
+        {"name": "rationale", "description": "1-2 sentences explaining the score"}
+      ]
+    },
+    {
+      "intent": "nurture",
+      "steps": [
+        "Identify the nurture topic from the lead text",
+        "Suggest a content sequence appropriate to the topic"
+      ],
+      "output_fields": [
+        {"name": "topic", "description": "topic of interest"},
+        {"name": "recommended_sequence", "description": "name of the marketing sequence to enroll"}
+      ]
+    },
+    {
+      "intent": "unqualified",
+      "steps": [
+        "Send polite no-follow response template",
+        "Tag in CRM for record-keeping"
+      ],
+      "output_fields": [
+        {"name": "response_template", "description": "name of the template to send"},
+        {"name": "crm_tag", "description": "tag to apply to the record"}
+      ]
+    }
+  ],
+  "eval_examples": [
+    {"description": "Acme Corp asking for enterprise pricing, 200-person eval", "expected_intent": "qualified", "notes": "clear BANT signals"},
+    {"description": "Solo developer asking about hobby projects", "expected_intent": "unqualified", "notes": "clear signals"},
+    {"description": "PM exploring options for next quarter", "expected_intent": "nurture", "notes": "interested but no urgency"},
+    {"description": "Outreach about cryptocurrency partnership", "expected_intent": "spam", "notes": "out-of-scope"},
+    {"description": "Engineer asking about API documentation", "expected_intent": "unknown", "notes": "ambiguous — could be lead or just user"}
+  ]
+}

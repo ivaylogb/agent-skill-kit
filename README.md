@@ -8,6 +8,7 @@ Claude Code skills for shipping production-grade agents. A reference agent, a se
 |---|---|
 | **Reference agent** (`reference_agent/`) | A working `issue-triage` agent — open-source library maintainer assistant. Other agents are compared against it. |
 | **Skills** (`.claude/skills/`) | `review-agent-pr`, `compare-agents`, `tool-description-audit`. Invoked from Claude Code. |
+| **Scaffolder** (`scaffold_agent/`) | Generates a new agent from a one-line description. Asks clarifying questions, produces a working agent matching the methodology. |
 | **Broken candidate** (`examples/broken_candidate/`) | A second agent with deliberate flaws. Used in the example outputs to show what the skills find. |
 | **Example outputs** (`examples/outputs/`) | What each skill produces when run against the broken candidate. |
 | **Conventions** (`docs/claude/`) | Reference-agent spec and shared docs the skills read. |
@@ -47,6 +48,19 @@ The skills aren't islands.
 - **Pre-merge gate.** Before merging, run `tool-description-audit` on any modified tools and `compare-agents` to confirm no regression against the reference.
 
 The connective tissue is `docs/claude/*.md`. Skills read these on demand. When a convention changes, the docs change. The skills don't.
+
+## The scaffolder
+
+The methodology, executable. Type a description, answer 1-3 clarifying questions, get a working agent.
+
+```bash
+python -m scaffold_agent describe "An agent that triages incoming sales leads by qualification stage" \
+    --output ./generated
+```
+
+The meta-agent asks structured clarifying questions (intents, tools, audience, constraints), validates the spec, then generates a complete agent directory mirroring the reference: manifest, prompts, tools, runner, starter eval golden set. Generated tools are stubs — fill in the `call()` functions against your real backend.
+
+Built on the Anthropic SDK directly: tool use, forced structured output via `tool_choice`, multi-turn conversation. The same primitives partner devs need to learn.
 
 ## The reference agent
 

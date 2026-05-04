@@ -32,3 +32,6 @@ ENV/
 
 # Audit reports — generated locally during demos
 audit_reports/
+
+# Generated agents from scaffold_agent
+generated/
