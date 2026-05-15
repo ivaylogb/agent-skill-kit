@@ -2,7 +2,7 @@
 
 A second agent in the same domain as the reference, with deliberate flaws baked in. Used by `compare-agents` and `tool-description-audit` to demonstrate what the skills find.
 
-This is a **teaching artifact**, not a real broken agent in the wild. The flaws are realistic but the package is curated — a real partner dev's v0 would be messier in different ways.
+A deliberately imperfect agent used to demonstrate the audit skills. The flaws below are intentional.
 
 ## The flaws
 
