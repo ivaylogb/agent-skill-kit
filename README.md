@@ -61,6 +61,28 @@ The skills aren't islands.
 
 The connective tissue is `docs/claude/*.md`. Skills read these on demand. When a convention changes, the docs change. The skills don't.
 
+## Diagnostic skills
+
+Four Claude Code skills that wrap the diagnostic tools. Install the underlying tools (agent-researcher, funnel-researcher, integration-watcher, pluma) separately. Each skill is a thin shell-out wrapper that lets Claude Code invoke the diagnostic tool when the conversation calls for it. They are a different class from the skills above: frontmatter-driven (with `description` and `when_to_use` for auto-invocation), with a `runner.py` and an `examples/usage.md` per skill. They carry no diagnostic logic — the installed CLI does the work.
+
+- `agent-researcher` — diagnose failing agent evals
+- `funnel-researcher` — diagnose developer-API funnel dropoff
+- `integration-watcher` — find patterns in trace cohorts
+- `pluma-cross` — correlate findings across tools (wraps `pluma cross`; runs ≥2 tools against one product surface, cache-backed so identical re-runs are near-free)
+
+Install the underlying tools (each from a clone of its repo, `ANTHROPIC_API_KEY` set — the diagnose/watch/cross steps spend model tokens):
+
+```bash
+# agent-researcher    — https://github.com/ivaylogb/agent-researcher
+# funnel-researcher   — https://github.com/ivaylogb/funnel-researcher
+# integration-watcher — https://github.com/ivaylogb/integration-watcher
+# pluma               — https://github.com/ivaylogb/pluma
+pip install -e .          # run from each tool's clone
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+`pluma-cross` also needs the sister tools it orchestrates installed. See each skill's `SKILL.md` and `examples/usage.md` for invocation.
+
 ## The scaffolder
 
 The methodology, executable. Type a description, answer 1-3 clarifying questions, get a working agent.
