@@ -40,7 +40,35 @@ The first agent takes the longest. Once the shape is in your hands, subsequent a
 
 ## Add a new skill
 
-Skills live in `.claude/skills/<name>/SKILL.md`. One file per skill.
+Skills live in `.claude/skills/<name>/`. There are two styles in this kit; pick the one that matches what the skill does.
+
+### Two skill styles
+
+**Instruction-style skills.** `compare-agents`, `review-agent-pr`, `tool-description-audit`. Claude does the work itself by reading the codebase against conventions. One `SKILL.md`, no frontmatter required — the `# heading` and first paragraph carry discovery. Goal-oriented prose; the anatomy below applies. This is the default for "review / compare / audit" capabilities.
+
+**Tool-wrapper skills.** `agent-researcher`, `funnel-researcher`, `integration-watcher`, `pluma-cross`. The skill shells out to a separately-installed CLI; the CLI does the work. These use canonical YAML frontmatter for auto-invocation, plus bundled files:
+
+```
+<name>/
+├── SKILL.md          # YAML frontmatter: name, description, when_to_use (underscore).
+├── runner.py         # Thin shell-out: validate inputs, invoke the CLI, return the output path.
+└── examples/
+    └── usage.md      # One worked example: what the user says → invocation → what Claude shows back.
+```
+
+Frontmatter contract for tool-wrapper skills:
+
+```yaml
+---
+name: <lowercase-hyphen>            # ≤64 chars; letters/digits/hyphens
+description: <what it does + that it wraps an installed CLI; concrete, no "lets you" framing>
+when_to_use: <the trigger condition>   # NOTE: underscore. `when-to-use` (hyphen) is not recognized.
+---
+```
+
+`runner.py` rules: pure shell-out, no diagnostic logic; validate every input path and the CLI's presence before invoking (a clear error beats a cryptic CLI failure); pass optional flags through; print the output artifact path on success and propagate the CLI's exit code. Reference the runner from `SKILL.md` as `python3 ${CLAUDE_SKILL_DIR}/runner.py ...` so it resolves regardless of working directory.
+
+The anatomy below is written for instruction-style skills. Tool-wrapper skills replace "How to do this / Output format / Self-check" with Prerequisites / Inputs / Outputs / Invocation, but keep "What this skill does not do".
 
 ### Anatomy of a skill
 
